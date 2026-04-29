@@ -1,14 +1,16 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
 import pickle
 import shap
 import matplotlib.pyplot as plt
+import os
 
-model         = pickle.load(open("model.pkl", "rb"))
-scaler        = pickle.load(open("scaler.pkl", "rb"))
-feature_names = pickle.load(open("feature_names.pkl", "rb"))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+model         = pickle.load(open(os.path.join(BASE_DIR, "model.pkl"), "rb"))
+scaler        = pickle.load(open(os.path.join(BASE_DIR, "scaler.pkl"), "rb"))
+feature_names = pickle.load(open(os.path.join(BASE_DIR, "feature_names.pkl"), "rb"))
 explainer     = shap.TreeExplainer(model)
 
 st.set_page_config(page_title="Student Performance Predictor", layout="wide")
@@ -17,7 +19,6 @@ st.caption("SHAP Explainability + What-If Simulator | Azizbek Boboqulov | ID: 22
 st.divider()
 
 st.sidebar.header("Student Parameters")
-
 G1        = st.sidebar.slider("G1 - First period grade",   0, 20, 10)
 G2        = st.sidebar.slider("G2 - Second period grade",  0, 20, 10)
 absences  = st.sidebar.slider("Absences",                  0, 93,  5)
@@ -48,7 +49,6 @@ proba = model.predict_proba(input_sc)[0][1]
 pred  = "PASS" if proba > 0.5 else "FAIL"
 risk  = "Low" if proba > 0.7 else "Medium" if proba > 0.5 else "High"
 
-# Results — simple text instead of metrics widget
 st.markdown(f"### Prediction: {pred}")
 st.markdown(f"### Pass Probability: {proba:.1%}")
 st.markdown(f"### Risk Level: {risk}")
@@ -61,7 +61,6 @@ else:
 st.divider()
 st.subheader("SHAP Explanation — Why this prediction?")
 
-# SHAP
 raw = explainer.shap_values(input_sc)
 if isinstance(raw, list):
     sv_vals = np.array(raw[1]).flatten()
