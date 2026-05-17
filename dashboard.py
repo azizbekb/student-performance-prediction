@@ -18,7 +18,7 @@ st.set_page_config(page_title="Student Performance AI", page_icon="🎓", layout
 
 st.markdown("""
 <style>
-html, body, [class*="css"] { font-family: 'Segoe UI', sans-serif; }
+html, body, [class*="css"] { font-family: "Segoe UI", sans-serif; }
 .main { background: #F0F7FB; }
 .block-container { padding: 1.2rem 2rem 2rem 2rem; max-width: 1200px; }
 .app-header { background: linear-gradient(135deg, #021B2E 0%, #065A82 100%); padding: 20px 28px 16px 28px; border-radius: 14px; border-left: 7px solid #0FA3B1; margin-bottom: 20px; }
@@ -45,6 +45,9 @@ html, body, [class*="css"] { font-family: 'Segoe UI', sans-serif; }
 .alert-good  { background:#DCFCE7; color:#166534; border-left:4px solid #059669; }
 .alert-info  { background:#E0F2FE; color:#075985; border-left:4px solid #0FA3B1; }
 .rec-box { background: #EFF6FF; border: 1.5px solid #BFDBFE; border-radius: 10px; padding: 14px 18px; font-size: 13.5px; color: #1e3a5f; line-height: 1.7; }
+.student-card { background: linear-gradient(135deg, #021B2E, #065A82); border-radius: 12px; padding: 16px 20px; color: white; margin-bottom: 10px; border-left: 5px solid #0FA3B1; }
+.student-card-name { font-size: 18px; font-weight: 800; margin: 0 0 4px 0; }
+.student-card-id   { font-size: 12px; opacity: 0.75; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -56,12 +59,28 @@ KEY_LABELS = {
     "studytime":"Weekly Study Time (1=<2h, 4=>10h)",
     "failures":"Number of Past Failures",
 }
-KEY_SHORT = {"G1":"G1 Grade","G2":"G2 Grade","absences":"Absences","studytime":"Study Time","failures":"Failures"}
+KEY_SHORT = {
+    "G1":"G1 Grade","G2":"G2 Grade",
+    "absences":"Absences","studytime":"Study Time","failures":"Failures"
+}
+
 PROFILES = {
-    "🔴  Ali — High Risk":      {"desc":"Very low grades · 18 absences · 2 past failures · rarely studies","G1":6,"G2":7,"absences":18,"studytime":1,"failures":2},
-    "🟡  Jasur — Borderline":   {"desc":"Average grades · 8 absences · 1 past failure · moderate study","G1":10,"G2":11,"absences":8,"studytime":2,"failures":1},
-    "🟢  Barno — Strong":       {"desc":"High grades · 2 absences · no failures · studies regularly","G1":15,"G2":16,"absences":2,"studytime":3,"failures":0},
-    "✏️  Custom Student":       {"desc":"Set your own values using the sliders below","G1":10,"G2":10,"absences":5,"studytime":2,"failures":0},
+    "🔴  Ali — High Risk": {
+        "desc":"Very low grades · 18 absences · 2 past failures · rarely studies",
+        "name":"Ali","G1":6,"G2":7,"absences":18,"studytime":1,"failures":2
+    },
+    "🟡  Jasur — Borderline": {
+        "desc":"Average grades · 8 absences · 1 past failure · moderate study",
+        "name":"Jasur","G1":10,"G2":11,"absences":8,"studytime":2,"failures":1
+    },
+    "🟢  Barno — Strong": {
+        "desc":"High grades · 2 absences · no failures · studies regularly",
+        "name":"Barno","G1":15,"G2":16,"absences":2,"studytime":3,"failures":0
+    },
+    "✏️  Add New Student": {
+        "desc":"Enter a new student name and fill in their details",
+        "name":"","G1":10,"G2":10,"absences":5,"studytime":2,"failures":0
+    },
 }
 
 def get_shap(input_sc):
@@ -76,56 +95,120 @@ def build_input(vals):
     df = pd.DataFrame([d])[feature_names]
     return scaler.transform(df)
 
+# ── Header ────────────────────────────────────────────────────────
 st.markdown("""
 <div class="app-header">
   <h1>🎓 AI-Based Student Performance Predictor</h1>
-  <p>SHAP Explainability &nbsp;+&nbsp; What-If Simulator &nbsp;|&nbsp; Azizbek Boboqulov · ID: 221198 &nbsp;|&nbsp; CAU Engineering School · May 2026</p>
+  <p>SHAP Explainability &nbsp;+&nbsp; What-If Simulator &nbsp;|&nbsp;
+     Azizbek Boboqulov · ID: 221198 &nbsp;|&nbsp; CAU Engineering School · May 2026</p>
 </div>
 """, unsafe_allow_html=True)
 
 left, right = st.columns([1, 2.2], gap="large")
 
+# ════════════ LEFT ════════════
 with left:
-    st.markdown('<div class="card"><div class="card-title">👤 Student Profile</div>', unsafe_allow_html=True)
+
+    # Profile selector
+    st.markdown(\'<div class="card"><div class="card-title">👤 Student Profile</div>\', unsafe_allow_html=True)
     sel     = st.selectbox("", list(PROFILES.keys()), label_visibility="collapsed")
     profile = PROFILES[sel]
-    st.markdown(f\'<div class="profile-info">📌 {profile["desc"]}</div>\', unsafe_allow_html=True)
+    is_new  = sel.startswith("✏️")
+
+    # New student form
+    if is_new:
+        st.markdown(\'<div style="margin-bottom:10px">\', unsafe_allow_html=True)
+        student_name = st.text_input("Student Name", placeholder="e.g. Sardor Karimov", key="sname")
+        student_id   = st.text_input("Student ID",   placeholder="e.g. 221205",         key="sid")
+        st.markdown("</div>", unsafe_allow_html=True)
+        display_name = student_name if student_name else "New Student"
+        display_id   = student_id   if student_id   else "—"
+    else:
+        display_name = profile["name"]
+        display_id   = "—"
+        st.markdown(f\'<div class="profile-info">📌 {profile["desc"]}</div>\', unsafe_allow_html=True)
+
     st.markdown("</div>", unsafe_allow_html=True)
 
+    # Student card (when name entered)
+    if is_new and student_name:
+        st.markdown(f"""
+        <div class="student-card">
+            <p class="student-card-name">👨‍🎓 {student_name}</p>
+            <p class="student-card-id">ID: {display_id}</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Sliders
     st.markdown(\'<div class="card"><div class="card-title">🎛️ Adjust Parameters</div>\', unsafe_allow_html=True)
-    G1        = st.slider("G1 — 1st Period Grade",             0, 20, profile["G1"])
-    G2        = st.slider("G2 — 2nd Period Grade",             0, 20, profile["G2"])
-    absences  = st.slider("School Absences (days)",            0, 93, profile["absences"])
-    studytime = st.slider("Study Time  (1=<2h · 4=>10h)",     1,  4, profile["studytime"])
-    failures  = st.slider("Past Failures",                     0,  4, profile["failures"])
+    G1        = st.slider("G1 — 1st Period Grade",         0, 20, profile["G1"],        key="g1")
+    G2        = st.slider("G2 — 2nd Period Grade",         0, 20, profile["G2"],        key="g2")
+    absences  = st.slider("School Absences (days)",        0, 93, profile["absences"],  key="ab")
+    studytime = st.slider("Study Time  (1=<2h · 4=>10h)", 1,  4, profile["studytime"], key="st")
+    failures  = st.slider("Past Failures",                 0,  4, profile["failures"],  key="fa")
     st.markdown("</div>", unsafe_allow_html=True)
 
+    # Alerts
     st.markdown(\'<div class="card"><div class="card-title">💡 Quick Alerts</div>\', unsafe_allow_html=True)
     alerts = []
-    if absences > 15:   alerts.append(("error", f"⚠️ {absences} absences — major risk factor"))
-    if failures > 1:    alerts.append(("error", f"🔴 {failures} past failures — significant risk"))
-    elif failures == 1: alerts.append(("warn",  "🟡 1 past failure — moderate risk"))
-    if G2 < 10:         alerts.append(("error", f"📉 G2 = {G2} — below passing threshold"))
-    elif G2 >= 14:      alerts.append(("good",  f"✅ G2 = {G2} — strong positive predictor"))
-    if studytime == 1:  alerts.append(("info",  "📚 Increase study time to improve prediction"))
-    if G1 > 0 and G2 > G1 + 2: alerts.append(("good", f"📈 Grade improving: G1={G1} → G2={G2}"))
-    if not alerts:      alerts.append(("info",  "ℹ️ No critical risk factors detected"))
+    if absences > 15:    alerts.append(("error", f"⚠️ {absences} absences — major risk"))
+    if failures > 1:     alerts.append(("error", f"🔴 {failures} past failures — high risk"))
+    elif failures == 1:  alerts.append(("warn",  "🟡 1 past failure — moderate risk"))
+    if G2 < 10:          alerts.append(("error", f"📉 G2 = {G2} — below passing threshold"))
+    elif G2 >= 14:       alerts.append(("good",  f"✅ G2 = {G2} — strong positive factor"))
+    if studytime == 1:   alerts.append(("info",  "📚 Low study time — try to increase"))
+    if G1 > 0 and G2 > G1 + 2: alerts.append(("good", f"📈 Improving: G1={G1} → G2={G2}"))
+    if not alerts:       alerts.append(("info",  "ℹ️ No critical risk factors detected"))
     css_map = {"error":"alert-error","warn":"alert-warn","good":"alert-good","info":"alert-info"}
     for kind, msg in alerts:
         st.markdown(f\'<div class="alert-box {css_map[kind]}">{msg}</div>\', unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
+# ════════════ RIGHT ════════════
 with right:
+
     vals     = {"G1":G1,"G2":G2,"absences":absences,"studytime":studytime,"failures":failures}
     input_sc = build_input(vals)
     proba    = float(model.predict_proba(input_sc)[0][1])
     pred     = "PASS" if proba > 0.5 else "FAIL"
     css_cls  = "res-pass" if proba > 0.5 else "res-fail"
-    risk_lbl = ("🟢 Low Risk" if proba > 0.75 else "🟡 Medium Risk" if proba > 0.5 else "🟠 High Risk" if proba > 0.3 else "🔴 Very High Risk")
+    risk_lbl = ("🟢 Low Risk"       if proba > 0.75 else
+                "🟡 Medium Risk"    if proba > 0.5  else
+                "🟠 High Risk"      if proba > 0.3  else
+                "🔴 Very High Risk")
 
+    # Student name banner (new student)
+    if is_new and student_name:
+        st.markdown(f"""
+        <div style="background:#F0F7FB;border:1.5px solid #D4EEF7;border-radius:10px;
+                    padding:10px 18px;margin-bottom:14px;display:flex;
+                    align-items:center;gap:12px">
+            <span style="font-size:28px">👨‍🎓</span>
+            <div>
+                <div style="font-size:18px;font-weight:800;color:#021B2E">{student_name}</div>
+                <div style="font-size:12px;color:#64748B">ID: {display_id} &nbsp;·&nbsp; Custom entry</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    elif not is_new:
+        st.markdown(f"""
+        <div style="background:#F0F7FB;border:1.5px solid #D4EEF7;border-radius:10px;
+                    padding:10px 18px;margin-bottom:14px">
+            <span style="font-size:15px;font-weight:700;color:#065A82">
+                Predicting for: {display_name}
+            </span>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Result row
     r1, r2, r3, r4 = st.columns([1.4, 1, 1, 1])
     with r1:
-        st.markdown(f\'\'\'<div class="{css_cls}"><div class="res-verdict">{pred}</div><div class="res-conf">{proba:.1%} confidence</div><div class="res-risk">{risk_lbl}</div></div>\'\'\', unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class="{css_cls}">
+            <div class="res-verdict">{pred}</div>
+            <div class="res-conf">{proba:.1%} confidence</div>
+            <div class="res-risk">{risk_lbl}</div>
+        </div>""", unsafe_allow_html=True)
     with r2:
         st.markdown(f\'<div class="metric"><div class="metric-v">{proba:.1%}</div><div class="metric-l">Pass Probability</div></div>\', unsafe_allow_html=True)
     with r3:
@@ -135,8 +218,9 @@ with right:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    sv_all     = get_shap(input_sc)
-    shap_dict  = {}
+    # SHAP
+    sv_all = get_shap(input_sc)
+    shap_dict = {}
     for f in KEY_FEATS:
         if f in feature_names:
             idx = feature_names.index(f)
@@ -156,10 +240,11 @@ with right:
             fig.patch.set_facecolor("white"); ax.set_facecolor("white")
             bars = ax.barh(labels, values, color=colors, height=0.5, edgecolor="white", linewidth=1.5)
             ax.axvline(0, color="#021B2E", linewidth=1.5, zorder=5)
-            xlim = max(abs(v) for v in values) * 1.55
+            xlim = max(abs(v) for v in values) * 1.6 if values else 0.05
             ax.set_xlim(-xlim, xlim)
             ax.set_xlabel("SHAP Value  (← FAIL  |  PASS →)", fontsize=9.5, color="#4A5568")
-            ax.set_title("Feature Contributions to Prediction", fontsize=12, fontweight="bold", color="#065A82", pad=8)
+            ax.set_title("Feature Contributions to Prediction",
+                         fontsize=12, fontweight="bold", color="#065A82", pad=8)
             ax.tick_params(axis="y", labelsize=11, colors="#1a1a2e")
             ax.tick_params(axis="x", labelsize=9,  colors="#4A5568")
             ax.spines["top"].set_visible(False); ax.spines["right"].set_visible(False)
@@ -168,9 +253,12 @@ with right:
             for bar, val in zip(bars, values):
                 sign = "+" if val >= 0 else ""
                 off  = xlim * 0.04
-                ax.text(val+(off if val>=0 else -off), bar.get_y()+bar.get_height()/2,
-                        f"{sign}{val:.3f}", va="center", ha="left" if val>=0 else "right",
-                        fontsize=10.5, fontweight="bold", color="#059669" if val>0 else "#DC2626")
+                ax.text(val+(off if val>=0 else -off),
+                        bar.get_y()+bar.get_height()/2,
+                        f"{sign}{val:.3f}", va="center",
+                        ha="left" if val>=0 else "right",
+                        fontsize=10.5, fontweight="bold",
+                        color="#059669" if val>0 else "#DC2626")
             gp = mpatches.Patch(color="#059669", label="Increases PASS chance")
             rp = mpatches.Patch(color="#DC2626", label="Increases FAIL risk")
             ax.legend(handles=[gp,rp], fontsize=9, loc="lower right", framealpha=0.9)
@@ -182,34 +270,44 @@ with right:
     with col_sum:
         st.markdown(\'<div class="card"><div class="card-title">📋 Feature Summary</div>\', unsafe_allow_html=True)
         for feat, sv in shap_sorted:
-            fval  = vals.get(feat,"—")
+            fval  = vals.get(feat, "—")
             color = "#059669" if sv>0 else "#DC2626"
             sign  = "+" if sv>0 else ""
             arrow = "▲" if sv>0 else "▼"
-            st.markdown(f\'\'\'
+            st.markdown(f"""
             <div class="feat-row" style="border-left-color:{color}">
-                <div><div class="feat-name">{KEY_SHORT[feat]}</div><div class="feat-value">{fval}</div></div>
+                <div>
+                    <div class="feat-name">{KEY_SHORT[feat]}</div>
+                    <div class="feat-value">{fval}</div>
+                </div>
                 <div class="feat-shap" style="color:{color}">{arrow} {sign}{sv:.3f}</div>
-            </div>\'\'\', unsafe_allow_html=True)
+            </div>""", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
+    # Educator Recommendation
     st.markdown(\'<div class="card"><div class="card-title">📝 Educator Recommendation</div>\', unsafe_allow_html=True)
     pos_f = [(f,v) for f,v in shap_sorted if v>0]
     neg_f = [(f,v) for f,v in shap_sorted if v<0]
     icon  = "✅" if pred=="PASS" else "⚠️"
-    rec   = f"{icon} <b>Prediction: {pred}</b> with <b>{proba:.1%} confidence</b> ({risk_lbl})<br><br>"
+    name_str = f"<b>{student_name}</b>" if (is_new and student_name) else f"<b>{display_name}</b>"
+    rec = f"{icon} {name_str} is predicted to <b>{pred}</b> with <b>{proba:.1%} confidence</b> ({risk_lbl})<br><br>"
     if pos_f:
-        rec += "<b>Strengths:</b> " + " · ".join([f\'<span style="color:#059669;font-weight:700">{KEY_SHORT[f]}</span> (+{v:.3f})\' for f,v in pos_f]) + "<br>"
+        rec += "<b>Strengths:</b> " + " · ".join([
+            f\'<span style="color:#059669;font-weight:700">{KEY_SHORT[f]}</span> (+{v:.3f})\'
+            for f,v in pos_f]) + "<br>"
     if neg_f:
-        rec += "<b>Risk factors:</b> " + " · ".join([f\'<span style="color:#DC2626;font-weight:700">{KEY_SHORT[f]}</span> ({v:.3f})\' for f,v in neg_f]) + "<br><br>"
-    if pred=="FAIL":
+        rec += "<b>Risk factors:</b> " + " · ".join([
+            f\'<span style="color:#DC2626;font-weight:700">{KEY_SHORT[f]}</span> ({v:.3f})\'
+            for f,v in neg_f]) + "<br><br>"
+    if pred == "FAIL":
         top = neg_f[0][0] if neg_f else None
-        rec += f\'🔴 <b>Action required:</b> Prioritize improving <b>{KEY_SHORT[top] if top else "key factors"}</b> — it has the largest negative impact.\' if top else "🔴 Immediate academic support recommended."
+        rec += (f\'🔴 <b>Action required:</b> Prioritize improving <b>{KEY_SHORT[top]}</b> — largest negative impact.\'
+                if top else "🔴 Immediate academic support recommended.")
     else:
         if neg_f:
             rec += f\'🟡 <b>Monitor:</b> Despite passing, <b>{KEY_SHORT[neg_f[0][0]]}</b> is still a risk factor. Address it to improve confidence.\'
         else:
-            rec += "🟢 <b>Well on track.</b> All factors are positive. Encourage the student to maintain current performance."
+            rec += "🟢 <b>Well on track.</b> All factors positive. Encourage student to maintain current performance."
     st.markdown(f\'<div class="rec-box">{rec}</div>\', unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 '''
@@ -219,4 +317,4 @@ with open("dashboard.py", "w") as f:
 
 from google.colab import files
 files.download("dashboard.py")
-print("✅ Professional dashboard ready! Upload to GitHub.")
+print("✅ Dashboard with student form ready! Upload to GitHub.")
